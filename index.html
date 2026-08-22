@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TMNT Memorama - Multijugador (9 Pares)</title>
+  <title>TMNT Memorama - Dinámico</title>
   <style>
     * {
       box-sizing: border-box;
@@ -34,7 +34,7 @@
       margin-bottom: 6px;
     }
 
-    /* Modal de selección de jugadores */
+    /* Modales */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -59,6 +59,22 @@
     .modal-content h2 {
       color: #ffd700;
       margin-bottom: 12px;
+    }
+
+    .win-gif-container {
+      width: 100%;
+      max-height: 180px;
+      margin: 12px 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid #ffd700;
+    }
+
+    .win-gif-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
 
     .mode-buttons {
@@ -106,7 +122,6 @@
       padding: 10px;
       text-align: center;
       box-shadow: 0 0 25px rgba(255, 0, 0, 0.6);
-      transform: scale(1.05);
     }
 
     .fail-box img {
@@ -164,24 +179,12 @@
       background-color: #388e3c;
     }
 
-    /* Tablero adaptable para 18 cartas */
+    /* Tablero adaptable */
     .game-board {
       display: grid;
-      grid-template-columns: repeat(6, 105px);
       gap: 10px;
       perspective: 1000px;
       justify-content: center;
-    }
-
-    @media (max-width: 680px) {
-      .game-board {
-        grid-template-columns: repeat(3, 95px);
-        gap: 8px;
-      }
-      .card {
-        width: 95px !important;
-        height: 95px !important;
-      }
     }
 
     .card {
@@ -240,13 +243,25 @@
       <h2>Selecciona Modo de Juego</h2>
       <p>¿Quiénes enfrentarán el reto ninja?</p>
       <div class="mode-buttons">
-        <button class="btn-mode" onclick="startGame(1)">1 Jugador</button>
-        <button class="btn-mode" onclick="startGame(2)">2 Jugadores</button>
+        <button class="btn-mode" onclick="startGame(1)">1 Jugador (10 cartas)</button>
+        <button class="btn-mode" onclick="startGame(2)">2 Jugadores (18 cartas)</button>
       </div>
     </div>
   </div>
 
-  <!-- Cartel flotante temporal de fallo -->
+  <!-- Modal de Victoria (winner.gif) -->
+  <div class="modal-overlay" id="winModal" style="display: none;">
+    <div class="modal-content">
+      <h2>¡Victoria Ninja!</h2>
+      <p id="winMessage"></p>
+      <div class="win-gif-container">
+        <img src="winner.gif" alt="Ganador">
+      </div>
+      <button class="btn-mode" onclick="showModeModal()">Jugar de Nuevo</button>
+    </div>
+  </div>
+
+  <!-- Cartel flotante de fallo (lost.gif) -->
   <div class="fail-overlay" id="failOverlay">
     <div class="fail-box">
       <img src="lost.gif" alt="Fallo">
@@ -264,7 +279,6 @@
   <main class="game-board" id="gameBoard"></main>
 
   <script>
-    // --- 1. Audio y Efectos ---
     const cowabungaAudio = new Audio('cowabunga.mp3');
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -274,10 +288,7 @@
     }
 
     function playTone(type) {
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-
+      if (audioCtx.state === 'suspended') { audioCtx.resume(); }
       const now = audioCtx.currentTime;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
@@ -303,8 +314,7 @@
       }
     }
 
-    // --- 2. Personajes ---
-    const scenes = [
+    const allScenes = [
       { id: 'leo', gif: 'leo.gif' },
       { id: 'don', gif: 'don.gif' },
       { id: 'raph', gif: 'raph.gif' },
@@ -320,19 +330,24 @@
     const turnDisplay = document.getElementById('turnDisplay');
     const statsDisplay = document.getElementById('statsDisplay');
     const modeModal = document.getElementById('modeModal');
+    const winModal = document.getElementById('winModal');
     const failOverlay = document.getElementById('failOverlay');
+    const winMessage = document.getElementById('winMessage');
 
     let totalPlayers = 1;
     let currentPlayer = 1;
     let scores = { 1: 0, 2: 0 };
     let moves = 0;
     let matchedPairs = 0;
+    let targetPairs = 5;
 
     let hasFlippedCard = false;
     let lockBoard = false;
     let firstCard, secondCard;
 
     function showModeModal() {
+      winModal.style.display = 'none';
+      failOverlay.style.display = 'none';
       modeModal.style.display = 'flex';
     }
 
@@ -343,6 +358,13 @@
       moves = 0;
       matchedPairs = 0;
       modeModal.style.display = 'none';
+      winModal.style.display = 'none';
+      failOverlay.style.display = 'none';
+
+      // 1 Jugador = 5 pares (10 cartas, grilla 5x2), 2 Jugadores = 9 pares (18 cartas, grilla 6x3)
+      targetPairs = (totalPlayers === 1) ? 5 : 9;
+      
+      board.style.gridTemplateColumns = (totalPlayers === 1) ? 'repeat(5, 105px)' : 'repeat(6, 105px)';
 
       updateHUD();
       buildBoard();
@@ -353,7 +375,7 @@
         turnDisplay.textContent = 'Modo Solitario';
         statsDisplay.innerHTML = `
           <span>Intentos: <strong>${moves}</strong></span>
-          <span>Pares: <strong>${matchedPairs}</strong>/${scenes.length}</span>
+          <span>Pares: <strong>${matchedPairs}</strong>/${targetPairs}</span>
         `;
       } else {
         turnDisplay.textContent = `Turno: Jugador ${currentPlayer} 🍕`;
@@ -364,9 +386,11 @@
       }
     }
 
-    // --- 3. Construcción del Tablero ---
     function buildBoard() {
-      const cards = [...scenes, ...scenes].sort(() => Math.random() - 0.5);
+      // Seleccionar subconjunto de escenas según los jugadores
+      const selectedScenes = allScenes.slice(0, targetPairs);
+      const cards = [...selectedScenes, ...selectedScenes].sort(() => Math.random() - 0.5);
+      
       board.innerHTML = '';
       resetBoard();
 
@@ -387,7 +411,6 @@
       });
     }
 
-    // --- 4. Lógica de Turnos y Coincidencias ---
     function flipCard() {
       if (lockBoard || this === firstCard) return;
 
@@ -424,7 +447,7 @@
 
       updateHUD();
 
-      if (matchedPairs === scenes.length) {
+      if (matchedPairs === targetPairs) {
         setTimeout(handleVictory, 600);
       }
 
@@ -433,36 +456,38 @@
 
     function handleMismatch() {
       lockBoard = true;
-      playTone('mismatch');
-      
-      // Mostrar overlay con lost.gif durante el error
-      failOverlay.style.display = 'flex';
 
       setTimeout(() => {
-        failOverlay.style.display = 'none';
-        firstCard.classList.remove('flipped');
-        secondCard.classList.remove('flipped');
-        resetBoard();
+        playTone('mismatch');
+        failOverlay.style.display = 'flex';
 
-        if (totalPlayers === 2) {
-          currentPlayer = currentPlayer === 1 ? 2 : 1;
-          updateHUD();
-        }
-      }, 1200);
+        setTimeout(() => {
+          failOverlay.style.display = 'none';
+          firstCard.classList.remove('flipped');
+          secondCard.classList.remove('flipped');
+          resetBoard();
+
+          if (totalPlayers === 2) {
+            currentPlayer = currentPlayer === 1 ? 2 : 1;
+            updateHUD();
+          }
+        }, 1200);
+      }, 2000);
     }
 
     function handleVictory() {
       if (totalPlayers === 1) {
-        alert(`¡Victoria Ninja! Completaste el tablero en ${moves} intentos.`);
+        winMessage.textContent = `¡Completaste el tablero en ${moves} intentos!`;
       } else {
         if (scores[1] > scores[2]) {
-          alert(`¡Jugador 1 es el Maestro Ninja Ganador con ${scores[1]} pares! 🏆`);
+          winMessage.textContent = `¡Jugador 1 gana con ${scores[1]} pares! 🏆`;
         } else if (scores[2] > scores[1]) {
-          alert(`¡Jugador 2 es el Maestro Ninja Ganador con ${scores[2]} pares! 🏆`);
+          winMessage.textContent = `¡Jugador 2 gana con ${scores[2]} pares! 🏆`;
         } else {
-          alert(`¡Empate de Ninjas! Ambos consiguieron ${scores[1]} pares. 🍕`);
+          winMessage.textContent = `¡Empate! Ambos consiguieron ${scores[1]} pares. 🍕`;
         }
       }
+      winModal.style.display = 'flex';
     }
 
     function resetBoard() {
