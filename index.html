@@ -51,7 +51,7 @@
       padding: 25px;
       border-radius: 12px;
       text-align: center;
-      max-width: 360px;
+      max-width: 460px;
       width: 90%;
       box-shadow: 0 0 20px rgba(76, 175, 80, 0.4);
     }
@@ -61,20 +61,25 @@
       margin-bottom: 12px;
     }
 
-    .win-gif-container {
-      width: 100%;
-      max-height: 180px;
-      margin: 12px 0;
-      border-radius: 8px;
+    /* Contenedor responsivo para el video de YouTube */
+    .video-container {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
       overflow: hidden;
+      border-radius: 8px;
+      margin: 14px 0;
       border: 2px solid #ffd700;
+      background: #000;
     }
 
-    .win-gif-container img {
+    .video-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100%;
       height: 100%;
-      object-fit: cover;
-      display: block;
+      border: 0;
     }
 
     .mode-buttons {
@@ -237,7 +242,7 @@
 </head>
 <body>
 
-  <!-- Modal Selector -->
+  <!-- Modal Selector de Modo -->
   <div class="modal-overlay" id="modeModal">
     <div class="modal-content">
       <h2>Selecciona Modo de Juego</h2>
@@ -249,15 +254,21 @@
     </div>
   </div>
 
-  <!-- Modal de Victoria (winner.gif) -->
+  <!-- Modal de Victoria con Video de YouTube -->
   <div class="modal-overlay" id="winModal" style="display: none;">
     <div class="modal-content">
       <h2>¡Victoria Ninja!</h2>
       <p id="winMessage"></p>
-      <div class="win-gif-container">
-        <img src="winner.gif" alt="Ganador">
+      <div class="video-container">
+        <iframe 
+          id="youtubeWinnerVideo"
+          src="" 
+          title="Celebración TMNT" 
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+          allowfullscreen>
+        </iframe>
       </div>
-      <button class="btn-mode" onclick="showModeModal()">Jugar de Nuevo</button>
+      <button class="btn-mode" onclick="closeWinModal()">Jugar de Nuevo</button>
     </div>
   </div>
 
@@ -279,6 +290,8 @@
   <main class="game-board" id="gameBoard"></main>
 
   <script>
+    const YOUTUBE_VIDEO_ID = '8L_hFFOJdok';
+
     const cowabungaAudio = new Audio('cowabunga.mp3');
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -333,6 +346,7 @@
     const winModal = document.getElementById('winModal');
     const failOverlay = document.getElementById('failOverlay');
     const winMessage = document.getElementById('winMessage');
+    const youtubeWinnerVideo = document.getElementById('youtubeWinnerVideo');
 
     let totalPlayers = 1;
     let currentPlayer = 1;
@@ -346,9 +360,14 @@
     let firstCard, secondCard;
 
     function showModeModal() {
-      winModal.style.display = 'none';
+      closeWinModal();
       failOverlay.style.display = 'none';
       modeModal.style.display = 'flex';
+    }
+
+    function closeWinModal() {
+      youtubeWinnerVideo.src = '';
+      winModal.style.display = 'none';
     }
 
     function startGame(playersCount) {
@@ -358,7 +377,7 @@
       moves = 0;
       matchedPairs = 0;
       modeModal.style.display = 'none';
-      winModal.style.display = 'none';
+      closeWinModal();
       failOverlay.style.display = 'none';
 
       targetPairs = (totalPlayers === 1) ? 5 : 9;
@@ -454,7 +473,6 @@
     function handleMismatch() {
       lockBoard = true;
 
-      // Espera 1 segundo antes de mostrar el GIF de fallo
       setTimeout(() => {
         playTone('mismatch');
         failOverlay.style.display = 'flex';
@@ -485,6 +503,9 @@
           winMessage.textContent = `¡Empate! Ambos consiguieron ${scores[1]} pares. 🍕`;
         }
       }
+
+      // Iniciar el video con reproducción automática
+      youtubeWinnerVideo.src = `https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?autoplay=1&rel=0`;
       winModal.style.display = 'flex';
     }
 
