@@ -34,7 +34,7 @@
       margin-bottom: 6px;
     }
 
-    /* Modales */
+    /* Modal de selección de jugadores */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -61,31 +61,6 @@
       margin-bottom: 12px;
     }
 
-    .modal-content.lose {
-      border-color: #d32f2f;
-      box-shadow: 0 0 20px rgba(211, 47, 47, 0.5);
-    }
-
-    .modal-content.lose h2 {
-      color: #ff5252;
-    }
-
-    .lose-gif-container {
-      width: 100%;
-      max-height: 180px;
-      margin: 12px 0;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 2px solid #ff5252;
-    }
-
-    .lose-gif-container img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
     .mode-buttons {
       display: flex;
       gap: 15px;
@@ -110,12 +85,51 @@
       transform: scale(1.05);
     }
 
-    .btn-lose {
-      background: #d32f2f;
+    /* Overlay animado para error/fallo (lost.gif) */
+    .fail-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 90;
+      pointer-events: none;
+      animation: fadeIn 0.2s ease-in-out;
     }
 
-    .btn-lose:hover {
-      background: #f44336;
+    .fail-box {
+      border: 3px solid #ff3333;
+      border-radius: 12px;
+      background: #1a0505;
+      padding: 10px;
+      text-align: center;
+      box-shadow: 0 0 25px rgba(255, 0, 0, 0.6);
+      transform: scale(1.05);
+    }
+
+    .fail-box img {
+      width: 220px;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 8px;
+      display: block;
+    }
+
+    .fail-box span {
+      display: block;
+      color: #ff4d4d;
+      font-weight: bold;
+      font-size: 1.1rem;
+      margin-top: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.9); }
+      to { opacity: 1; transform: scale(1); }
     }
 
     .turn-indicator {
@@ -220,7 +234,7 @@
 </head>
 <body>
 
-  <!-- Modal Selector de Modo -->
+  <!-- Modal Selector -->
   <div class="modal-overlay" id="modeModal">
     <div class="modal-content">
       <h2>Selecciona Modo de Juego</h2>
@@ -232,15 +246,11 @@
     </div>
   </div>
 
-  <!-- Modal de Derrota (lost.gif) -->
-  <div class="modal-overlay" id="loseModal" style="display: none;">
-    <div class="modal-content lose">
-      <h2>¡Has Sido Derrotado!</h2>
-      <p>Te has quedado sin intentos.</p>
-      <div class="lose-gif-container">
-        <img src="lost.gif" alt="Derrota">
-      </div>
-      <button class="btn-mode btn-lose" onclick="startGame(1)">Intentar de Nuevo</button>
+  <!-- Cartel flotante temporal de fallo -->
+  <div class="fail-overlay" id="failOverlay">
+    <div class="fail-box">
+      <img src="lost.gif" alt="Fallo">
+      <span>¡No Coinciden!</span>
     </div>
   </div>
 
@@ -293,7 +303,7 @@
       }
     }
 
-    // --- 2. Personajes locales ---
+    // --- 2. Personajes ---
     const scenes = [
       { id: 'leo', gif: 'leo.gif' },
       { id: 'don', gif: 'don.gif' },
@@ -306,13 +316,11 @@
       { id: 'april', gif: 'april.gif' }
     ];
 
-    const MAX_MOVES_SOLO = 20; // Límite de intentos para 1 jugador
-
     const board = document.getElementById('gameBoard');
     const turnDisplay = document.getElementById('turnDisplay');
     const statsDisplay = document.getElementById('statsDisplay');
     const modeModal = document.getElementById('modeModal');
-    const loseModal = document.getElementById('loseModal');
+    const failOverlay = document.getElementById('failOverlay');
 
     let totalPlayers = 1;
     let currentPlayer = 1;
@@ -325,7 +333,6 @@
     let firstCard, secondCard;
 
     function showModeModal() {
-      loseModal.style.display = 'none';
       modeModal.style.display = 'flex';
     }
 
@@ -336,7 +343,6 @@
       moves = 0;
       matchedPairs = 0;
       modeModal.style.display = 'none';
-      loseModal.style.display = 'none';
 
       updateHUD();
       buildBoard();
@@ -346,7 +352,7 @@
       if (totalPlayers === 1) {
         turnDisplay.textContent = 'Modo Solitario';
         statsDisplay.innerHTML = `
-          <span>Intentos: <strong>${moves}/${MAX_MOVES_SOLO}</strong></span>
+          <span>Intentos: <strong>${moves}</strong></span>
           <span>Pares: <strong>${matchedPairs}</strong>/${scenes.length}</span>
         `;
       } else {
@@ -428,8 +434,12 @@
     function handleMismatch() {
       lockBoard = true;
       playTone('mismatch');
+      
+      // Mostrar overlay con lost.gif durante el error
+      failOverlay.style.display = 'flex';
 
       setTimeout(() => {
+        failOverlay.style.display = 'none';
         firstCard.classList.remove('flipped');
         secondCard.classList.remove('flipped');
         resetBoard();
@@ -437,10 +447,8 @@
         if (totalPlayers === 2) {
           currentPlayer = currentPlayer === 1 ? 2 : 1;
           updateHUD();
-        } else if (totalPlayers === 1 && moves >= MAX_MOVES_SOLO && matchedPairs < scenes.length) {
-          handleDefeat();
         }
-      }, 1000);
+      }, 1200);
     }
 
     function handleVictory() {
@@ -455,10 +463,6 @@
           alert(`¡Empate de Ninjas! Ambos consiguieron ${scores[1]} pares. 🍕`);
         }
       }
-    }
-
-    function handleDefeat() {
-      loseModal.style.display = 'flex';
     }
 
     function resetBoard() {
