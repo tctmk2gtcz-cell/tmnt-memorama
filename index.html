@@ -361,9 +361,7 @@
       winModal.style.display = 'none';
       failOverlay.style.display = 'none';
 
-      // 1 Jugador = 5 pares (10 cartas, grilla 5x2), 2 Jugadores = 9 pares (18 cartas, grilla 6x3)
       targetPairs = (totalPlayers === 1) ? 5 : 9;
-      
       board.style.gridTemplateColumns = (totalPlayers === 1) ? 'repeat(5, 105px)' : 'repeat(6, 105px)';
 
       updateHUD();
@@ -387,7 +385,6 @@
     }
 
     function buildBoard() {
-      // Seleccionar subconjunto de escenas según los jugadores
       const selectedScenes = allScenes.slice(0, targetPairs);
       const cards = [...selectedScenes, ...selectedScenes].sort(() => Math.random() - 0.5);
       
@@ -457,6 +454,7 @@
     function handleMismatch() {
       lockBoard = true;
 
+      // Espera 1 segundo antes de mostrar el GIF de fallo
       setTimeout(() => {
         playTone('mismatch');
         failOverlay.style.display = 'flex';
@@ -472,7 +470,7 @@
             updateHUD();
           }
         }, 1200);
-      }, 2000);
+      }, 1000);
     }
 
     function handleVictory() {
