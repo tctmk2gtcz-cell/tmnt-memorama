@@ -1,282 +1,589 @@
-// --- 1. Control de YouTube ---
-let player;
-let isApiReady = false;
-
-function onYouTubeIframeAPIReady() {
-  player = new YT.Player('youtubePlayer', {
-    videoId: '8L_hFFOJdok',
-    playerVars: {
-      autoplay: 0,
-      rel: 0,
-      playsinline: 1
-    },
-    events: {
-      onReady: () => { isApiReady = true; },
-      onStateChange: onPlayerStateChange
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TMNT Memorama - Multijugador</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
-  });
-}
 
-function onPlayerStateChange(event) {
-  if (event.data === YT.PlayerState.ENDED) {
-    minimizeVideo();
-  }
-}
-
-function minimizeVideo() {
-  const container = document.getElementById('videoContainer');
-  if (container) {
-    container.classList.remove('maximized');
-  }
-}
-
-// --- 2. Audio FX ---
-const cowabungaAudio = new Audio('cowabunga.mp3');
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-function playCowabunga() {
-  cowabungaAudio.currentTime = 0;
-  cowabungaAudio.play().catch(() => {});
-}
-
-function playTone(type) {
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-  const now = audioCtx.currentTime;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-
-  if (type === 'flip') {
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(400, now);
-    osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-    osc.start(now);
-    osc.stop(now + 0.08);
-  } else if (type === 'mismatch') {
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(220, now);
-    osc.frequency.exponentialRampToValueAtTime(110, now + 0.2);
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-    osc.start(now);
-    osc.stop(now + 0.2);
-  }
-}
-
-// --- 3. Personajes ---
-const allScenes = [
-  { id: 'leo', gif: 'leo.gif' },
-  { id: 'don', gif: 'don.gif' },
-  { id: 'raph', gif: 'raph.gif' },
-  { id: 'mike', gif: 'mike.gif' },
-  { id: 'splinter', gif: 'splinter.gif' },
-  { id: 'shredder', gif: 'shredder.gif' },
-  { id: 'all', gif: 'all.gif' },
-  { id: 'leather', gif: 'leather.gif' },
-  { id: 'april', gif: 'april.gif' }
-];
-
-// --- 4. Variables de Estado ---
-const board = document.getElementById('gameBoard');
-const turnDisplay = document.getElementById('turnDisplay');
-const statsDisplay = document.getElementById('statsDisplay');
-const modeModal = document.getElementById('modeModal');
-const winModal = document.getElementById('winModal');
-const failOverlay = document.getElementById('failOverlay');
-const winMessage = document.getElementById('winMessage');
-const videoContainer = document.getElementById('videoContainer');
-
-let totalPlayers = 1;
-let currentPlayer = 1;
-let scores = { 1: 0, 2: 0, 3: 0 };
-let moves = 0;
-let matchedPairs = 0;
-let targetPairs = 5;
-
-let hasFlippedCard = false;
-let lockBoard = false;
-let firstCard, secondCard;
-
-// --- 5. Flujo de Juego ---
-function showModeModal() {
-  closeWinModal();
-  failOverlay.style.display = 'none';
-  modeModal.style.display = 'flex';
-}
-
-function closeWinModal() {
-  minimizeVideo();
-  if (player && typeof player.stopVideo === 'function') {
-    player.stopVideo();
-  }
-  winModal.style.display = 'none';
-  showModeModal(); // Vuelve a abrir el selector de 1, 2 o 3 jugadores
-}
-
-function startGame(playersCount) {
-  totalPlayers = playersCount;
-  currentPlayer = 1;
-  scores = { 1: 0, 2: 0, 3: 0 };
-  moves = 0;
-  matchedPairs = 0;
-  modeModal.style.display = 'none';
-  winModal.style.display = 'none';
-  failOverlay.style.display = 'none';
-
-  // 1 Jugador = 5 pares (10 cartas); 2 o 3 Jugadores = 9 pares (18 cartas)
-  targetPairs = (totalPlayers === 1) ? 5 : 9;
-  board.style.gridTemplateColumns = (totalPlayers === 1) ? 'repeat(5, 105px)' : 'repeat(6, 105px)';
-
-  updateHUD();
-  buildBoard();
-}
-
-function updateHUD() {
-  if (totalPlayers === 1) {
-    turnDisplay.textContent = 'Modo Solitario';
-    statsDisplay.innerHTML = `
-      <span>Intentos: <strong>${moves}</strong></span>
-      <span>Pares: <strong>${matchedPairs}</strong>/${targetPairs}</span>
-    `;
-  } else {
-    turnDisplay.textContent = `Turno: Jugador ${currentPlayer} 🍕`;
-    let scoresHTML = '';
-    for (let i = 1; i <= totalPlayers; i++) {
-      scoresHTML += `<span>J${i}: <strong>${scores[i]}</strong></span>`;
+    body {
+      background-color: #0f1c0f;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 15px;
     }
-    statsDisplay.innerHTML = scoresHTML;
-  }
-}
 
-function buildBoard() {
-  const selectedScenes = allScenes.slice(0, targetPairs);
-  const cards = [...selectedScenes, ...selectedScenes].sort(() => Math.random() - 0.5);
+    header {
+      margin-bottom: 12px;
+      text-align: center;
+    }
 
-  board.innerHTML = '';
-  resetBoard();
+    h1 {
+      color: #4caf50;
+      text-shadow: 2px 2px 5px #000;
+      font-size: 1.6rem;
+      margin-bottom: 6px;
+    }
 
-  cards.forEach(item => {
-    const card = document.createElement('div');
-    card.classList.add('card');
-    card.dataset.id = item.id;
+    /* Modales */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
 
-    card.innerHTML = `
-      <div class="card-face card-front">🐢</div>
-      <div class="card-face card-back">
-        <img src="${item.gif}" alt="${item.id}">
+    .modal-content {
+      background: #1b381b;
+      border: 3px solid #4caf50;
+      padding: 25px;
+      border-radius: 12px;
+      text-align: center;
+      max-width: 460px;
+      width: 90%;
+      box-shadow: 0 0 20px rgba(76, 175, 80, 0.4);
+    }
+
+    .modal-content h2 {
+      color: #ffd700;
+      margin-bottom: 12px;
+    }
+
+    .video-container {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      overflow: hidden;
+      border-radius: 8px;
+      margin: 14px 0;
+      border: 2px solid #ffd700;
+      background: #000;
+      transition: all 0.3s ease-in-out;
+    }
+
+    .video-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+
+    .video-container.maximized {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      padding-bottom: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      z-index: 9999 !important;
+    }
+
+    .video-container.maximized iframe {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .mode-buttons {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin-top: 15px;
+    }
+
+    .btn-mode {
+      background: #2e7d32;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .btn-mode:hover {
+      background: #4caf50;
+      transform: scale(1.05);
+    }
+
+    .fail-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 90;
+      pointer-events: none;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+
+    .fail-box {
+      border: 3px solid #ff3333;
+      border-radius: 12px;
+      background: #1a0505;
+      padding: 10px;
+      text-align: center;
+      box-shadow: 0 0 25px rgba(255, 0, 0, 0.6);
+    }
+
+    .fail-box img {
+      width: 220px;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 8px;
+      display: block;
+    }
+
+    .fail-box span {
+      display: block;
+      color: #ff4d4d;
+      font-weight: bold;
+      font-size: 1.1rem;
+      margin-top: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.9); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .turn-indicator {
+      font-size: 1.15rem;
+      font-weight: bold;
+      color: #ffd700;
+      margin-bottom: 6px;
+      min-height: 25px;
+    }
+
+    .stats {
+      font-size: 0.95rem;
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+
+    .btn-action {
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+    }
+
+    .btn-action:hover {
+      background-color: #388e3c;
+    }
+
+    .game-board {
+      display: grid;
+      gap: 10px;
+      perspective: 1000px;
+      justify-content: center;
+    }
+
+    .card {
+      width: 105px;
+      height: 105px;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.4s ease-in-out;
+      cursor: pointer;
+    }
+
+    .card.flipped {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.6);
+      user-select: none;
+      overflow: hidden;
+    }
+
+    .card-front {
+      background: #1b381b;
+      border: 2px solid #4caf50;
+      font-size: 2rem;
+    }
+
+    .card-back {
+      background: #000;
+      transform: rotateY(180deg);
+      border: 2px solid #ffcc00;
+    }
+
+    .card-back img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      pointer-events: none;
+    }
+  </style>
+  <script src="https://www.youtube.com/iframe_api"></script>
+</head>
+<body>
+
+  <!-- Modal Selector de Modo -->
+  <div class="modal-overlay" id="modeModal">
+    <div class="modal-content">
+      <h2>Selecciona Modo de Juego</h2>
+      <p>¿Quiénes enfrentarán el reto ninja?</p>
+      <div class="mode-buttons">
+        <button class="btn-mode" onclick="startGame(1)">1 Jugador</button>
+        <button class="btn-mode" onclick="startGame(2)">2 Jugadores</button>
+        <button class="btn-mode" onclick="startGame(3)">3 Jugadores</button>
       </div>
-    `;
+    </div>
+  </div>
 
-    card.addEventListener('click', flipCard);
-    board.appendChild(card);
-  });
-}
+  <!-- Modal de Victoria con Video -->
+  <div class="modal-overlay" id="winModal" style="display: none;">
+    <div class="modal-content" id="winModalContent">
+      <h2>¡Victoria Ninja!</h2>
+      <p id="winMessage"></p>
+      
+      <div class="video-container" id="videoContainer">
+        <div id="youtubePlayer"></div>
+      </div>
 
-// --- 6. Manejo de Turnos y Coincidencias ---
-function flipCard() {
-  if (lockBoard || this === firstCard) return;
+      <button class="btn-mode" onclick="closeWinModal()">Jugar de Nuevo</button>
+    </div>
+  </div>
 
-  playTone('flip');
-  this.classList.add('flipped');
+  <!-- Cartel de fallo (lost.gif) -->
+  <div class="fail-overlay" id="failOverlay">
+    <div class="fail-box">
+      <img src="lost.gif" alt="Fallo">
+      <span>¡No Coinciden!</span>
+    </div>
+  </div>
 
-  if (!hasFlippedCard) {
-    hasFlippedCard = true;
-    firstCard = this;
-    return;
-  }
+  <header>
+    <h1>🐢 Cowabunga! TMNT Memorama</h1>
+    <div class="turn-indicator" id="turnDisplay">Turno: Jugador 1</div>
+    <div class="stats" id="statsDisplay"></div>
+    <button class="btn-action" onclick="showModeModal()">Cambiar Modo</button>
+  </header>
 
-  secondCard = this;
-  moves++;
-  updateHUD();
-  checkMatch();
-}
+  <main class="game-board" id="gameBoard"></main>
 
-function checkMatch() {
-  const isMatch = firstCard.dataset.id === secondCard.dataset.id;
-  isMatch ? handleMatch() : handleMismatch();
-}
+  <script>
+    // --- 1. Control de YouTube ---
+    let player;
+    let isApiReady = false;
 
-function handleMatch() {
-  playCowabunga();
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('youtubePlayer', {
+        videoId: '8L_hFFOJdok',
+        playerVars: {
+          autoplay: 0,
+          rel: 0,
+          playsinline: 1
+        },
+        events: {
+          onReady: () => { isApiReady = true; },
+          onStateChange: onPlayerStateChange
+        }
+      });
+    }
 
-  firstCard.removeEventListener('click', flipCard);
-  secondCard.removeEventListener('click', flipCard);
-  matchedPairs++;
+    function onPlayerStateChange(event) {
+      if (event.data === YT.PlayerState.ENDED) {
+        minimizeVideo();
+      }
+    }
 
-  if (totalPlayers > 1) {
-    scores[currentPlayer]++;
-  }
+    function minimizeVideo() {
+      const container = document.getElementById('videoContainer');
+      if (container) {
+        container.classList.remove('maximized');
+      }
+    }
 
-  updateHUD();
+    // --- 2. Audio FX ---
+    const cowabungaAudio = new Audio('cowabunga.mp3');
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-  if (matchedPairs === targetPairs) {
-    setTimeout(handleVictory, 600);
-  }
+    function playCowabunga() {
+      cowabungaAudio.currentTime = 0;
+      cowabungaAudio.play().catch(() => {});
+    }
 
-  resetBoard();
-}
+    function playTone(type) {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
 
-function handleMismatch() {
-  lockBoard = true;
+      if (type === 'flip') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      } else if (type === 'mismatch') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.2);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+      }
+    }
 
-  setTimeout(() => {
-    playTone('mismatch');
-    failOverlay.style.display = 'flex';
+    // --- 3. Personajes ---
+    const allScenes = [
+      { id: 'leo', gif: 'leo.gif' },
+      { id: 'don', gif: 'don.gif' },
+      { id: 'raph', gif: 'raph.gif' },
+      { id: 'mike', gif: 'mike.gif' },
+      { id: 'splinter', gif: 'splinter.gif' },
+      { id: 'shredder', gif: 'shredder.gif' },
+      { id: 'all', gif: 'all.gif' },
+      { id: 'leather', gif: 'leather.gif' },
+      { id: 'april', gif: 'april.gif' }
+    ];
 
-    setTimeout(() => {
+    // --- 4. Variables de Estado ---
+    const board = document.getElementById('gameBoard');
+    const turnDisplay = document.getElementById('turnDisplay');
+    const statsDisplay = document.getElementById('statsDisplay');
+    const modeModal = document.getElementById('modeModal');
+    const winModal = document.getElementById('winModal');
+    const failOverlay = document.getElementById('failOverlay');
+    const winMessage = document.getElementById('winMessage');
+    const videoContainer = document.getElementById('videoContainer');
+
+    let totalPlayers = 1;
+    let currentPlayer = 1;
+    let scores = { 1: 0, 2: 0, 3: 0 };
+    let moves = 0;
+    let matchedPairs = 0;
+    let targetPairs = 5;
+
+    let hasFlippedCard = false;
+    let lockBoard = false;
+    let firstCard, secondCard;
+
+    // --- 5. Flujo de Partida ---
+    function showModeModal() {
+      closeWinModal();
       failOverlay.style.display = 'none';
-      firstCard.classList.remove('flipped');
-      secondCard.classList.remove('flipped');
+      modeModal.style.display = 'flex';
+    }
+
+    function closeWinModal() {
+      minimizeVideo();
+      if (player && typeof player.stopVideo === 'function') {
+        player.stopVideo();
+      }
+      winModal.style.display = 'none';
+      showModeModal();
+    }
+
+    function startGame(playersCount) {
+      totalPlayers = playersCount;
+      currentPlayer = 1;
+      scores = { 1: 0, 2: 0, 3: 0 };
+      moves = 0;
+      matchedPairs = 0;
+      modeModal.style.display = 'none';
+      winModal.style.display = 'none';
+      failOverlay.style.display = 'none';
+
+      targetPairs = (totalPlayers === 1) ? 5 : 9;
+      board.style.gridTemplateColumns = (totalPlayers === 1) ? 'repeat(5, 105px)' : 'repeat(6, 105px)';
+
+      updateHUD();
+      buildBoard();
+    }
+
+    function updateHUD() {
+      if (totalPlayers === 1) {
+        turnDisplay.textContent = 'Modo Solitario';
+        statsDisplay.innerHTML = `
+          <span>Intentos: <strong>${moves}</strong></span>
+          <span>Pares: <strong>${matchedPairs}</strong>/${targetPairs}</span>
+        `;
+      } else {
+        turnDisplay.textContent = `Turno: Jugador ${currentPlayer} 🍕`;
+        let scoresHTML = '';
+        for (let i = 1; i <= totalPlayers; i++) {
+          scoresHTML += `<span>J${i}: <strong>${scores[i]}</strong></span>`;
+        }
+        statsDisplay.innerHTML = scoresHTML;
+      }
+    }
+
+    function buildBoard() {
+      const selectedScenes = allScenes.slice(0, targetPairs);
+      const cards = [...selectedScenes, ...selectedScenes].sort(() => Math.random() - 0.5);
+
+      board.innerHTML = '';
       resetBoard();
 
+      cards.forEach(item => {
+        const card = document.createElement('div');
+        card.classList.add('card');
+        card.dataset.id = item.id;
+
+        card.innerHTML = `
+          <div class="card-face card-front">🐢</div>
+          <div class="card-face card-back">
+            <img src="${item.gif}" alt="${item.id}">
+          </div>
+        `;
+
+        card.addEventListener('click', flipCard);
+        board.appendChild(card);
+      });
+    }
+
+    // --- 6. Manejo de Turnos ---
+    function flipCard() {
+      if (lockBoard || this === firstCard) return;
+
+      playTone('flip');
+      this.classList.add('flipped');
+
+      if (!hasFlippedCard) {
+        hasFlippedCard = true;
+        firstCard = this;
+        return;
+      }
+
+      secondCard = this;
+      moves++;
+      updateHUD();
+      checkMatch();
+    }
+
+    function checkMatch() {
+      const isMatch = firstCard.dataset.id === secondCard.dataset.id;
+      isMatch ? handleMatch() : handleMismatch();
+    }
+
+    function handleMatch() {
+      playCowabunga();
+
+      firstCard.removeEventListener('click', flipCard);
+      secondCard.removeEventListener('click', flipCard);
+      matchedPairs++;
+
       if (totalPlayers > 1) {
-        // Rotación cíclica de turnos (1 -> 2 -> 3 -> 1)
-        currentPlayer = (currentPlayer % totalPlayers) + 1;
-        updateHUD();
+        scores[currentPlayer]++;
       }
-    }, 1200);
-  }, 1000);
-}
 
-function handleVictory() {
-  if (totalPlayers === 1) {
-    winMessage.textContent = `¡Completaste el tablero en ${moves} intentos!`;
-  } else {
-    let maxScore = -1;
-    let winners = [];
+      updateHUD();
 
-    for (let i = 1; i <= totalPlayers; i++) {
-      if (scores[i] > maxScore) {
-        maxScore = scores[i];
-        winners = [i];
-      } else if (scores[i] === maxScore) {
-        winners.push(i);
+      if (matchedPairs === targetPairs) {
+        setTimeout(handleVictory, 600);
+      }
+
+      resetBoard();
+    }
+
+    function handleMismatch() {
+      lockBoard = true;
+
+      setTimeout(() => {
+        playTone('mismatch');
+        failOverlay.style.display = 'flex';
+
+        setTimeout(() => {
+          failOverlay.style.display = 'none';
+          firstCard.classList.remove('flipped');
+          secondCard.classList.remove('flipped');
+          resetBoard();
+
+          if (totalPlayers > 1) {
+            currentPlayer = (currentPlayer % totalPlayers) + 1;
+            updateHUD();
+          }
+        }, 1200);
+      }, 1000);
+    }
+
+    function handleVictory() {
+      if (totalPlayers === 1) {
+        winMessage.textContent = `¡Completaste el tablero en ${moves} intentos!`;
+      } else {
+        let maxScore = -1;
+        let winners = [];
+
+        for (let i = 1; i <= totalPlayers; i++) {
+          if (scores[i] > maxScore) {
+            maxScore = scores[i];
+            winners = [i];
+          } else if (scores[i] === maxScore) {
+            winners.push(i);
+          }
+        }
+
+        if (winners.length === 1) {
+          winMessage.textContent = `¡Jugador ${winners[0]} gana con ${maxScore} pares! 🏆`;
+        } else {
+          const tiedPlayers = winners.map(w => `J${w}`).join(' y ');
+          winMessage.textContent = `¡Empate entre ${tiedPlayers} con ${maxScore} pares! 🍕`;
+        }
+      }
+
+      winModal.style.display = 'flex';
+      videoContainer.classList.add('maximized');
+
+      if (isApiReady && player) {
+        player.seekTo(0);
+        player.playVideo();
       }
     }
 
-    if (winners.length === 1) {
-      winMessage.textContent = `¡Jugador ${winners[0]} gana con ${maxScore} pares! 🏆`;
-    } else {
-      const tiedPlayers = winners.map(w => `J${w}`).join(' y ');
-      winMessage.textContent = `¡Empate entre ${tiedPlayers} con ${maxScore} pares! 🍕`;
+    function resetBoard() {
+      [hasFlippedCard, lockBoard] = [false, false];
+      [firstCard, secondCard] = [null, null];
     }
-  }
-
-  winModal.style.display = 'flex';
-  videoContainer.classList.add('maximized');
-
-  if (isApiReady && player) {
-    player.seekTo(0);
-    player.playVideo();
-  }
-}
-
-function resetBoard() {
-  [hasFlippedCard, lockBoard] = [false, false];
-  [firstCard, secondCard] = [null, null];
-}
+  </script>
+</body>
+</html>
