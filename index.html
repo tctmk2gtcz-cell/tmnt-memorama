@@ -58,14 +58,33 @@
 
     .modal-content h2 {
       color: #ffd700;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
+    }
+
+    .winner-highlight {
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: #ffd700;
+      margin: 8px 0;
+      text-shadow: 1px 1px 3px #000;
+    }
+
+    .scores-summary {
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+      padding: 8px;
+      margin: 10px 0;
+      font-size: 0.95rem;
+      display: flex;
+      justify-content: space-around;
+      border: 1px solid #4caf50;
     }
 
     /* Contenedor del GIF de ganador */
     .win-gif-container {
       width: 100%;
-      max-height: 200px;
-      margin: 14px 0;
+      max-height: 190px;
+      margin: 12px 0;
       border-radius: 8px;
       overflow: hidden;
       border: 2px solid #ffd700;
@@ -79,7 +98,7 @@
       display: block;
     }
 
-    /* Video en Pantalla Completa Absoluta */
+    /* Video en Pantalla Completa */
     .fullscreen-video-overlay {
       position: fixed;
       inset: 0;
@@ -274,11 +293,12 @@
     <div id="youtubePlayer"></div>
   </div>
 
-  <!-- Modal de Victoria Final (Solo winner.gif) -->
+  <!-- Modal de Victoria con Ganador Destacado y winner.gif -->
   <div class="modal-overlay" id="winModal" style="display: none;">
     <div class="modal-content">
       <h2>¡Victoria Ninja!</h2>
-      <p id="winMessage"></p>
+      <div class="winner-highlight" id="winnerHighlight"></div>
+      <div class="scores-summary" id="scoresSummary" style="display: none;"></div>
       
       <div class="win-gif-container">
         <img src="winner.gif" alt="Ganador">
@@ -327,11 +347,8 @@
     }
 
     function onPlayerStateChange(event) {
-      // Al terminar el video (YT.PlayerState.ENDED = 0)
       if (event.data === YT.PlayerState.ENDED) {
-        // 1. Ocultar video
         document.getElementById('videoOverlay').style.display = 'none';
-        // 2. Mostrar modal de ganador con winner.gif
         document.getElementById('winModal').style.display = 'flex';
       }
     }
@@ -395,7 +412,8 @@
     const winModal = document.getElementById('winModal');
     const videoOverlay = document.getElementById('videoOverlay');
     const failOverlay = document.getElementById('failOverlay');
-    const winMessage = document.getElementById('winMessage');
+    const winnerHighlight = document.getElementById('winnerHighlight');
+    const scoresSummary = document.getElementById('scoresSummary');
 
     let totalPlayers = 1;
     let currentPlayer = 1;
@@ -553,7 +571,8 @@
 
     function handleVictory() {
       if (totalPlayers === 1) {
-        winMessage.textContent = `¡Completaste el tablero en ${moves} intentos!`;
+        winnerHighlight.textContent = `¡Completaste el memorama en ${moves} intentos!`;
+        scoresSummary.style.display = 'none';
       } else {
         let maxScore = -1;
         let winners = [];
@@ -567,15 +586,25 @@
           }
         }
 
+        // Mostrar jugador ganador con más pares
         if (winners.length === 1) {
-          winMessage.textContent = `¡Jugador ${winners[0]} gana con ${maxScore} pares! 🏆`;
+          winnerHighlight.textContent = `🏆 ¡Jugador ${winners[0]} es el Ganador con ${maxScore} pares!`;
         } else {
-          const tiedPlayers = winners.map(w => `J${w}`).join(' y ');
-          winMessage.textContent = `¡Empate entre ${tiedPlayers} con ${maxScore} pares! 🍕`;
+          const tiedNames = winners.map(w => `Jugador ${w}`).join(' y ');
+          winnerHighlight.textContent = `🍕 ¡Empate entre ${tiedNames} con ${maxScore} pares!`;
         }
+
+        // Resumen de puntajes de todos los jugadores
+        let summaryHTML = '';
+        for (let i = 1; i <= totalPlayers; i++) {
+          const isWinner = winners.includes(i);
+          summaryHTML += `<span>J${i}: <strong>${scores[i]} pares</strong> ${isWinner ? '👑' : ''}</span>`;
+        }
+        scoresSummary.innerHTML = summaryHTML;
+        scoresSummary.style.display = 'flex';
       }
 
-      // 1. Mostrar y reproducir video a pantalla completa
+      // Reproducir video a pantalla completa
       videoOverlay.style.display = 'flex';
 
       if (isApiReady && player) {
