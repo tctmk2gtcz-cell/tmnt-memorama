@@ -1,4 +1,4 @@
-// --- 1. Control del Reproductor de YouTube ---
+// --- 1. Control de YouTube ---
 let player;
 let isApiReady = false;
 
@@ -18,7 +18,6 @@ function onYouTubeIframeAPIReady() {
 }
 
 function onPlayerStateChange(event) {
-  // YT.PlayerState.ENDED = 0
   if (event.data === YT.PlayerState.ENDED) {
     minimizeVideo();
   }
@@ -69,7 +68,7 @@ function playTone(type) {
   }
 }
 
-// --- 3. Personajes y GIFs Locales ---
+// --- 3. Personajes ---
 const allScenes = [
   { id: 'leo', gif: 'leo.gif' },
   { id: 'don', gif: 'don.gif' },
@@ -82,7 +81,7 @@ const allScenes = [
   { id: 'april', gif: 'april.gif' }
 ];
 
-// --- 4. Variables de Estado y DOM ---
+// --- 4. Variables de Estado ---
 const board = document.getElementById('gameBoard');
 const turnDisplay = document.getElementById('turnDisplay');
 const statsDisplay = document.getElementById('statsDisplay');
@@ -94,7 +93,7 @@ const videoContainer = document.getElementById('videoContainer');
 
 let totalPlayers = 1;
 let currentPlayer = 1;
-let scores = { 1: 0, 2: 0 };
+let scores = { 1: 0, 2: 0, 3: 0 };
 let moves = 0;
 let matchedPairs = 0;
 let targetPairs = 5;
@@ -103,7 +102,7 @@ let hasFlippedCard = false;
 let lockBoard = false;
 let firstCard, secondCard;
 
-// --- 5. Flujo de Partida ---
+// --- 5. Flujo de Juego ---
 function showModeModal() {
   closeWinModal();
   failOverlay.style.display = 'none';
@@ -116,20 +115,20 @@ function closeWinModal() {
     player.stopVideo();
   }
   winModal.style.display = 'none';
-  showModeModal();
+  showModeModal(); // Vuelve a abrir el selector de 1, 2 o 3 jugadores
 }
 
 function startGame(playersCount) {
   totalPlayers = playersCount;
   currentPlayer = 1;
-  scores = { 1: 0, 2: 0 };
+  scores = { 1: 0, 2: 0, 3: 0 };
   moves = 0;
   matchedPairs = 0;
   modeModal.style.display = 'none';
   winModal.style.display = 'none';
   failOverlay.style.display = 'none';
 
-  // 1 Jugador = 5 pares (10 cartas), 2 Jugadores = 9 pares (18 cartas)
+  // 1 Jugador = 5 pares (10 cartas); 2 o 3 Jugadores = 9 pares (18 cartas)
   targetPairs = (totalPlayers === 1) ? 5 : 9;
   board.style.gridTemplateColumns = (totalPlayers === 1) ? 'repeat(5, 105px)' : 'repeat(6, 105px)';
 
@@ -146,10 +145,11 @@ function updateHUD() {
     `;
   } else {
     turnDisplay.textContent = `Turno: Jugador ${currentPlayer} 🍕`;
-    statsDisplay.innerHTML = `
-      <span>Jugador 1: <strong>${scores[1]}</strong> pares</span>
-      <span>Jugador 2: <strong>${scores[2]}</strong> pares</span>
-    `;
+    let scoresHTML = '';
+    for (let i = 1; i <= totalPlayers; i++) {
+      scoresHTML += `<span>J${i}: <strong>${scores[i]}</strong></span>`;
+    }
+    statsDisplay.innerHTML = scoresHTML;
   }
 }
 
@@ -177,7 +177,7 @@ function buildBoard() {
   });
 }
 
-// --- 6. Mecánica de Turnos y Coincidencias ---
+// --- 6. Manejo de Turnos y Coincidencias ---
 function flipCard() {
   if (lockBoard || this === firstCard) return;
 
@@ -208,7 +208,7 @@ function handleMatch() {
   secondCard.removeEventListener('click', flipCard);
   matchedPairs++;
 
-  if (totalPlayers === 2) {
+  if (totalPlayers > 1) {
     scores[currentPlayer]++;
   }
 
@@ -224,20 +224,19 @@ function handleMatch() {
 function handleMismatch() {
   lockBoard = true;
 
-  // Espera 1 segundo antes de mostrar el lost.gif
   setTimeout(() => {
     playTone('mismatch');
     failOverlay.style.display = 'flex';
 
-    // Muestra lost.gif durante 1.2 segundos y luego voltea
     setTimeout(() => {
       failOverlay.style.display = 'none';
       firstCard.classList.remove('flipped');
       secondCard.classList.remove('flipped');
       resetBoard();
 
-      if (totalPlayers === 2) {
-        currentPlayer = currentPlayer === 1 ? 2 : 1;
+      if (totalPlayers > 1) {
+        // Rotación cíclica de turnos (1 -> 2 -> 3 -> 1)
+        currentPlayer = (currentPlayer % totalPlayers) + 1;
         updateHUD();
       }
     }, 1200);
@@ -248,21 +247,29 @@ function handleVictory() {
   if (totalPlayers === 1) {
     winMessage.textContent = `¡Completaste el tablero en ${moves} intentos!`;
   } else {
-    if (scores[1] > scores[2]) {
-      winMessage.textContent = `¡Jugador 1 gana con ${scores[1]} pares! 🏆`;
-    } else if (scores[2] > scores[1]) {
-      winMessage.textContent = `¡Jugador 2 gana con ${scores[2]} pares! 🏆`;
+    let maxScore = -1;
+    let winners = [];
+
+    for (let i = 1; i <= totalPlayers; i++) {
+      if (scores[i] > maxScore) {
+        maxScore = scores[i];
+        winners = [i];
+      } else if (scores[i] === maxScore) {
+        winners.push(i);
+      }
+    }
+
+    if (winners.length === 1) {
+      winMessage.textContent = `¡Jugador ${winners[0]} gana con ${maxScore} pares! 🏆`;
     } else {
-      winMessage.textContent = `¡Empate! Ambos consiguieron ${scores[1]} pares. 🍕`;
+      const tiedPlayers = winners.map(w => `J${w}`).join(' y ');
+      winMessage.textContent = `¡Empate entre ${tiedPlayers} con ${maxScore} pares! 🍕`;
     }
   }
 
   winModal.style.display = 'flex';
-
-  // Maximizar contenedor a pantalla completa
   videoContainer.classList.add('maximized');
 
-  // Reproducir video automáticamente
   if (isApiReady && player) {
     player.seekTo(0);
     player.playVideo();
