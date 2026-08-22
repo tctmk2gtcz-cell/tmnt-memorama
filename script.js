@@ -1,6 +1,37 @@
-// --- 1. Audio y Video ---
-const YOUTUBE_VIDEO_ID = '8L_hFFOJdok';
+// --- 1. Control del Reproductor de YouTube ---
+let player;
+let isApiReady = false;
 
+function onYouTubeIframeAPIReady() {
+  player = new YT.Player('youtubePlayer', {
+    videoId: '8L_hFFOJdok',
+    playerVars: {
+      autoplay: 0,
+      rel: 0,
+      playsinline: 1
+    },
+    events: {
+      onReady: () => { isApiReady = true; },
+      onStateChange: onPlayerStateChange
+    }
+  });
+}
+
+function onPlayerStateChange(event) {
+  // YT.PlayerState.ENDED = 0
+  if (event.data === YT.PlayerState.ENDED) {
+    minimizeVideo();
+  }
+}
+
+function minimizeVideo() {
+  const container = document.getElementById('videoContainer');
+  if (container) {
+    container.classList.remove('maximized');
+  }
+}
+
+// --- 2. Audio FX ---
 const cowabungaAudio = new Audio('cowabunga.mp3');
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -38,7 +69,7 @@ function playTone(type) {
   }
 }
 
-// --- 2. Personajes y GIFs ---
+// --- 3. Personajes y GIFs Locales ---
 const allScenes = [
   { id: 'leo', gif: 'leo.gif' },
   { id: 'don', gif: 'don.gif' },
@@ -51,7 +82,7 @@ const allScenes = [
   { id: 'april', gif: 'april.gif' }
 ];
 
-// --- 3. Elementos DOM y Variables de Estado ---
+// --- 4. Variables de Estado y DOM ---
 const board = document.getElementById('gameBoard');
 const turnDisplay = document.getElementById('turnDisplay');
 const statsDisplay = document.getElementById('statsDisplay');
@@ -59,7 +90,7 @@ const modeModal = document.getElementById('modeModal');
 const winModal = document.getElementById('winModal');
 const failOverlay = document.getElementById('failOverlay');
 const winMessage = document.getElementById('winMessage');
-const youtubeWinnerVideo = document.getElementById('youtubeWinnerVideo');
+const videoContainer = document.getElementById('videoContainer');
 
 let totalPlayers = 1;
 let currentPlayer = 1;
@@ -72,7 +103,7 @@ let hasFlippedCard = false;
 let lockBoard = false;
 let firstCard, secondCard;
 
-// --- 4. Control de Modos de Juego ---
+// --- 5. Flujo de Partida ---
 function showModeModal() {
   closeWinModal();
   failOverlay.style.display = 'none';
@@ -80,8 +111,12 @@ function showModeModal() {
 }
 
 function closeWinModal() {
-  youtubeWinnerVideo.src = '';
+  minimizeVideo();
+  if (player && typeof player.stopVideo === 'function') {
+    player.stopVideo();
+  }
   winModal.style.display = 'none';
+  showModeModal();
 }
 
 function startGame(playersCount) {
@@ -91,7 +126,7 @@ function startGame(playersCount) {
   moves = 0;
   matchedPairs = 0;
   modeModal.style.display = 'none';
-  closeWinModal();
+  winModal.style.display = 'none';
   failOverlay.style.display = 'none';
 
   // 1 Jugador = 5 pares (10 cartas), 2 Jugadores = 9 pares (18 cartas)
@@ -118,7 +153,6 @@ function updateHUD() {
   }
 }
 
-// --- 5. Construcción del Tablero ---
 function buildBoard() {
   const selectedScenes = allScenes.slice(0, targetPairs);
   const cards = [...selectedScenes, ...selectedScenes].sort(() => Math.random() - 0.5);
@@ -143,7 +177,7 @@ function buildBoard() {
   });
 }
 
-// --- 6. Mecánicas de Juego ---
+// --- 6. Mecánica de Turnos y Coincidencias ---
 function flipCard() {
   if (lockBoard || this === firstCard) return;
 
@@ -190,12 +224,12 @@ function handleMatch() {
 function handleMismatch() {
   lockBoard = true;
 
-  // Espera 1 segundo antes de mostrar el GIF de fallo
+  // Espera 1 segundo antes de mostrar el lost.gif
   setTimeout(() => {
     playTone('mismatch');
     failOverlay.style.display = 'flex';
 
-    // Muestra lost.gif durante 1.2 segundos y voltea las cartas
+    // Muestra lost.gif durante 1.2 segundos y luego voltea
     setTimeout(() => {
       failOverlay.style.display = 'none';
       firstCard.classList.remove('flipped');
@@ -223,9 +257,16 @@ function handleVictory() {
     }
   }
 
-  // Reproducir video de YouTube con autoplay
-  youtubeWinnerVideo.src = `https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?autoplay=1&rel=0`;
   winModal.style.display = 'flex';
+
+  // Maximizar contenedor a pantalla completa
+  videoContainer.classList.add('maximized');
+
+  // Reproducir video automáticamente
+  if (isApiReady && player) {
+    player.seekTo(0);
+    player.playVideo();
+  }
 }
 
 function resetBoard() {
