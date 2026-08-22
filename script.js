@@ -1,98 +1,129 @@
-// --- 1. Sistema de Audio Sintetizado ---
+// --- 1. Audio y Video ---
+const YOUTUBE_VIDEO_ID = '8L_hFFOJdok';
+
+const cowabungaAudio = new Audio('cowabunga.mp3');
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-function playSound(type) {
+function playCowabunga() {
+  cowabungaAudio.currentTime = 0;
+  cowabungaAudio.play().catch(() => {});
+}
+
+function playTone(type) {
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
   }
-
   const now = audioCtx.currentTime;
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
-
   osc.connect(gain);
   gain.connect(audioCtx.destination);
 
-  switch (type) {
-    case 'flip':
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(400, now);
-      osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-      osc.start(now);
-      osc.stop(now + 0.08);
-      break;
-
-    case 'match':
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(523.25, now); // C5
-      osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
-      gain.gain.setValueAtTime(0.3, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-      osc.start(now);
-      osc.stop(now + 0.3);
-      break;
-
-    case 'mismatch':
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(220, now);
-      osc.frequency.exponentialRampToValueAtTime(110, now + 0.2);
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-      osc.start(now);
-      osc.stop(now + 0.2);
-      break;
-
-    case 'win':
-      [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
-        const o = audioCtx.createOscillator();
-        const g = audioCtx.createGain();
-        o.connect(g);
-        g.connect(audioCtx.destination);
-
-        const start = now + (i * 0.12);
-        o.frequency.setValueAtTime(freq, start);
-        g.gain.setValueAtTime(0.25, start);
-        g.gain.exponentialRampToValueAtTime(0.01, start + 0.35);
-        o.start(start);
-        o.stop(start + 0.35);
-      });
-      break;
+  if (type === 'flip') {
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.exponentialRampToValueAtTime(800, now + 0.08);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+    osc.start(now);
+    osc.stop(now + 0.08);
+  } else if (type === 'mismatch') {
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(110, now + 0.2);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+    osc.start(now);
+    osc.stop(now + 0.2);
   }
 }
 
-// --- 2. Datos de las Escenas/Personajes ---
-const scenes = [
-  { id: 'leo', name: 'Leonardo', icon: '⚔️' },
-  { id: 'don', name: 'Donatello', icon: '🟣' },
-  { id: 'raph', name: 'Raphael', icon: '🔴' },
-  { id: 'mike', name: 'Michelangelo', icon: '🍕' },
-  { id: 'splinter', name: 'Splinter', icon: '🥋' },
-  { id: 'shredder', name: 'Shredder', icon: '🦹' }
+// --- 2. Personajes y GIFs ---
+const allScenes = [
+  { id: 'leo', gif: 'leo.gif' },
+  { id: 'don', gif: 'don.gif' },
+  { id: 'raph', gif: 'raph.gif' },
+  { id: 'mike', gif: 'mike.gif' },
+  { id: 'splinter', gif: 'splinter.gif' },
+  { id: 'shredder', gif: 'shredder.gif' },
+  { id: 'all', gif: 'all.gif' },
+  { id: 'leather', gif: 'leather.gif' },
+  { id: 'april', gif: 'april.gif' }
 ];
 
-// --- 3. Variables de Control de Estado ---
+// --- 3. Elementos DOM y Variables de Estado ---
 const board = document.getElementById('gameBoard');
-const movesDisplay = document.getElementById('moves');
-const matchesDisplay = document.getElementById('matches');
-const restartBtn = document.getElementById('restartBtn');
+const turnDisplay = document.getElementById('turnDisplay');
+const statsDisplay = document.getElementById('statsDisplay');
+const modeModal = document.getElementById('modeModal');
+const winModal = document.getElementById('winModal');
+const failOverlay = document.getElementById('failOverlay');
+const winMessage = document.getElementById('winMessage');
+const youtubeWinnerVideo = document.getElementById('youtubeWinnerVideo');
+
+let totalPlayers = 1;
+let currentPlayer = 1;
+let scores = { 1: 0, 2: 0 };
+let moves = 0;
+let matchedPairs = 0;
+let targetPairs = 5;
 
 let hasFlippedCard = false;
 let lockBoard = false;
 let firstCard, secondCard;
-let moves = 0;
-let matchedPairs = 0;
 
-// --- 4. Inicialización y Barajado ---
-function initGame() {
-  const cards = [...scenes, ...scenes].sort(() => Math.random() - 0.5);
+// --- 4. Control de Modos de Juego ---
+function showModeModal() {
+  closeWinModal();
+  failOverlay.style.display = 'none';
+  modeModal.style.display = 'flex';
+}
 
-  board.innerHTML = '';
+function closeWinModal() {
+  youtubeWinnerVideo.src = '';
+  winModal.style.display = 'none';
+}
+
+function startGame(playersCount) {
+  totalPlayers = playersCount;
+  currentPlayer = 1;
+  scores = { 1: 0, 2: 0 };
   moves = 0;
   matchedPairs = 0;
-  movesDisplay.textContent = moves;
-  matchesDisplay.textContent = matchedPairs;
+  modeModal.style.display = 'none';
+  closeWinModal();
+  failOverlay.style.display = 'none';
+
+  // 1 Jugador = 5 pares (10 cartas), 2 Jugadores = 9 pares (18 cartas)
+  targetPairs = (totalPlayers === 1) ? 5 : 9;
+  board.style.gridTemplateColumns = (totalPlayers === 1) ? 'repeat(5, 105px)' : 'repeat(6, 105px)';
+
+  updateHUD();
+  buildBoard();
+}
+
+function updateHUD() {
+  if (totalPlayers === 1) {
+    turnDisplay.textContent = 'Modo Solitario';
+    statsDisplay.innerHTML = `
+      <span>Intentos: <strong>${moves}</strong></span>
+      <span>Pares: <strong>${matchedPairs}</strong>/${targetPairs}</span>
+    `;
+  } else {
+    turnDisplay.textContent = `Turno: Jugador ${currentPlayer} 🍕`;
+    statsDisplay.innerHTML = `
+      <span>Jugador 1: <strong>${scores[1]}</strong> pares</span>
+      <span>Jugador 2: <strong>${scores[2]}</strong> pares</span>
+    `;
+  }
+}
+
+// --- 5. Construcción del Tablero ---
+function buildBoard() {
+  const selectedScenes = allScenes.slice(0, targetPairs);
+  const cards = [...selectedScenes, ...selectedScenes].sort(() => Math.random() - 0.5);
+
+  board.innerHTML = '';
   resetBoard();
 
   cards.forEach(item => {
@@ -103,8 +134,7 @@ function initGame() {
     card.innerHTML = `
       <div class="card-face card-front">🐢</div>
       <div class="card-face card-back">
-        <span class="icon">${item.icon}</span>
-        <span>${item.name}</span>
+        <img src="${item.gif}" alt="${item.id}">
       </div>
     `;
 
@@ -113,11 +143,11 @@ function initGame() {
   });
 }
 
-// --- 5. Manejo del Giro de Cartas ---
+// --- 6. Mecánicas de Juego ---
 function flipCard() {
   if (lockBoard || this === firstCard) return;
 
-  playSound('flip');
+  playTone('flip');
   this.classList.add('flipped');
 
   if (!hasFlippedCard) {
@@ -128,28 +158,30 @@ function flipCard() {
 
   secondCard = this;
   moves++;
-  movesDisplay.textContent = moves;
+  updateHUD();
   checkMatch();
 }
 
-// --- 6. Validación de Coincidencias ---
 function checkMatch() {
   const isMatch = firstCard.dataset.id === secondCard.dataset.id;
   isMatch ? handleMatch() : handleMismatch();
 }
 
 function handleMatch() {
-  playSound('match');
+  playCowabunga();
+
   firstCard.removeEventListener('click', flipCard);
   secondCard.removeEventListener('click', flipCard);
   matchedPairs++;
-  matchesDisplay.textContent = matchedPairs;
 
-  if (matchedPairs === scenes.length) {
-    setTimeout(() => {
-      playSound('win');
-      alert(`¡Cowabunga! Completaste el tablero en ${moves} intentos.`);
-    }, 400);
+  if (totalPlayers === 2) {
+    scores[currentPlayer]++;
+  }
+
+  updateHUD();
+
+  if (matchedPairs === targetPairs) {
+    setTimeout(handleVictory, 600);
   }
 
   resetBoard();
@@ -157,19 +189,46 @@ function handleMatch() {
 
 function handleMismatch() {
   lockBoard = true;
-  playSound('mismatch');
 
+  // Espera 1 segundo antes de mostrar el GIF de fallo
   setTimeout(() => {
-    firstCard.classList.remove('flipped');
-    secondCard.classList.remove('flipped');
-    resetBoard();
-  }, 900);
+    playTone('mismatch');
+    failOverlay.style.display = 'flex';
+
+    // Muestra lost.gif durante 1.2 segundos y voltea las cartas
+    setTimeout(() => {
+      failOverlay.style.display = 'none';
+      firstCard.classList.remove('flipped');
+      secondCard.classList.remove('flipped');
+      resetBoard();
+
+      if (totalPlayers === 2) {
+        currentPlayer = currentPlayer === 1 ? 2 : 1;
+        updateHUD();
+      }
+    }, 1200);
+  }, 1000);
+}
+
+function handleVictory() {
+  if (totalPlayers === 1) {
+    winMessage.textContent = `¡Completaste el tablero en ${moves} intentos!`;
+  } else {
+    if (scores[1] > scores[2]) {
+      winMessage.textContent = `¡Jugador 1 gana con ${scores[1]} pares! 🏆`;
+    } else if (scores[2] > scores[1]) {
+      winMessage.textContent = `¡Jugador 2 gana con ${scores[2]} pares! 🏆`;
+    } else {
+      winMessage.textContent = `¡Empate! Ambos consiguieron ${scores[1]} pares. 🍕`;
+    }
+  }
+
+  // Reproducir video de YouTube con autoplay
+  youtubeWinnerVideo.src = `https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?autoplay=1&rel=0`;
+  winModal.style.display = 'flex';
 }
 
 function resetBoard() {
   [hasFlippedCard, lockBoard] = [false, false];
   [firstCard, secondCard] = [null, null];
 }
-
-restartBtn.addEventListener('click', initGame);
-initGame();
